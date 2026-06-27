@@ -82,3 +82,4 @@ Code2Py/
 ---
 
 *Built with FastAPI, React, and a local Llama-family model.*
+# Code2Py
