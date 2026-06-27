@@ -1,0 +1,19 @@
+# Python virtual environment
+venv/
+.venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Secrets — NEVER commit these
+.env
+.env.local
+*.env
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,26 @@
+# Render blueprint for the Code2Py backend (FastAPI).
+# Render reads this at the repo root. Frontend is deployed separately on Vercel.
+services:
+  - type: web
+    name: code2py-api
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    # Apply DB migrations, then start the server.
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.5"
+      - key: AI_PROVIDER
+        value: groq
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: JWT_SECRET
+        generateValue: true # Render generates a strong secret
+      - key: DATABASE_URL
+        sync: false # set in dashboard (Neon connection string, with +psycopg)
+      - key: GROQ_API_KEY
+        sync: false # set in dashboard (from console.groq.com)
+      - key: CORS_ORIGINS
+        sync: false # set to your Vercel URL, e.g. https://code2py.vercel.app
