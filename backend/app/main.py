@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from app.api.routes import auth, chat, notes, translate, translations
 from app.core.config import settings
+from app.core.rate_limit import limiter
 
 # The single application instance. Everything (routes, middleware, docs)
 # attaches to this object. The title/description/version below populate
@@ -12,6 +15,11 @@ app = FastAPI(
     description="Convert C/C++/Java DSA code into Python with educational insights.",
     version="0.1.0",
 )
+
+# Register the rate limiter: store it on app.state (slowapi looks for it there)
+# and install the handler that turns over-limit requests into a clean 429.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Allowed frontend origins come from config (CORS_ORIGINS env var in production —
 # add your Vercel URL there).

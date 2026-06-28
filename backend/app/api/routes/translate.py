@@ -1,7 +1,8 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_optional
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.translation import Translation
 from app.models.user import User
@@ -17,7 +18,9 @@ router = APIRouter(prefix="/translate", tags=["translate"])
 
 
 @router.post("", response_model=TranslationJob, status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("10/minute")
 def create_translation(
+    request: Request,
     payload: TranslateRequest,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
