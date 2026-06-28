@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5-coder:7b"
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
+    # Multimodal model used to read code out of an uploaded image (free tier).
+    groq_vision_model: str = "meta-llama/llama-4-scout-17b-16e-instruct"
 
     # Comma-separated list of allowed frontend origins for CORS.
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

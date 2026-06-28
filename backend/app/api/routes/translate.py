@@ -1,4 +1,15 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+import base64
+
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_optional
@@ -7,12 +18,17 @@ from app.db.session import get_db
 from app.models.translation import Translation
 from app.models.user import User
 from app.schemas.translation import (
+    ImageExtractionResponse,
     TranslateRequest,
     TranslationDetail,
     TranslationJob,
     TranslationResult,
 )
+from app.services.ai import get_ai_provider
 from app.services.translation_service import run_translation
+
+# Reject oversized uploads early (vision APIs cap image size anyway).
+_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 router = APIRouter(prefix="/translate", tags=["translate"])
 
@@ -44,6 +60,39 @@ def create_translation(
     # Run the model AFTER the response is sent — keeps the request snappy.
     background_tasks.add_task(run_translation, translation.id)
     return translation       # serialized via TranslationJob (from_attributes)
+
+
+@router.post("/extract-image", response_model=ImageExtractionResponse)
+@limiter.limit("10/minute")
+def extract_image(request: Request, file: UploadFile = File(...)):
+    """Read source code out of an uploaded image using a multimodal model.
+
+    Returns the transcribed code + detected language. is_code is False when the
+    image isn't recognizable code — the frontend uses that to warn instead of
+    feeding garbage into the translator.
+    """
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(status_code=400, detail="Please upload an image file.")
+
+    raw = file.file.read()
+    if len(raw) > _MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large (max 5 MB).")
+
+    image_b64 = base64.b64encode(raw).decode("ascii")
+    try:
+        result = get_ai_provider().extract_code_from_image(image_b64, file.content_type)
+    except NotImplementedError:
+        raise HTTPException(
+            status_code=501, detail="Image reading isn't available on this server."
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=502, detail="Could not read the image. Try a clearer screenshot."
+        )
+
+    return ImageExtractionResponse(
+        is_code=result.is_code, language=result.language, code=result.code
+    )
 
 
 @router.get("/{translation_id}", response_model=TranslationDetail)

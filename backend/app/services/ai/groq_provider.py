@@ -3,7 +3,12 @@ import json
 from groq import Groq
 
 from app.core.config import settings
-from app.services.ai.base import AIProvider, TranslationOutput, normalize_code
+from app.services.ai.base import (
+    AIProvider,
+    ImageExtraction,
+    TranslationOutput,
+    normalize_code,
+)
 
 _TRANSLATE_SYSTEM = (
     "You are an expert computer-science tutor who converts data-structures and "
@@ -14,7 +19,21 @@ _TRANSLATE_SYSTEM = (
     "walkthrough), algorithm (the technique used, or 'General logic'), "
     "time_complexity and space_complexity (Big-O like 'O(n)'), "
     "leetcode_problems (array of 3 related LeetCode problem titles), "
-    "video_topics (array of 3 short YouTube search phrases)."
+    "video_topics (array of 3 short YouTube search phrases). "
+    "IMPORTANT: If the input is NOT valid source code (e.g. prose, gibberish, "
+    "or garbled OCR text), do NOT invent code. Instead set python_code to an "
+    "empty string, algorithm to 'Not code', and use explanation to say the "
+    "input didn't look like code."
+)
+
+# Asks a multimodal model to transcribe code from an image AND judge whether
+# the image actually contains code (so we never hallucinate on a random photo).
+_VISION_SYSTEM = (
+    "You extract source code from images. Respond ONLY with a JSON object with "
+    "keys: is_code (boolean — true only if the image clearly shows C, C++, or "
+    "Java source code), language (one of 'c', 'cpp', 'java', or 'other'), and "
+    "code (the exact transcribed code as plain text, or an empty string if "
+    "is_code is false). Do not guess or invent code that isn't clearly visible."
 )
 
 _CHAT_SYSTEM = (
@@ -54,6 +73,33 @@ class GroqProvider(AIProvider):
             space_complexity=data.get("space_complexity", ""),
             leetcode_problems=[str(x) for x in data.get("leetcode_problems", [])][:5],
             video_topics=[str(x) for x in data.get("video_topics", [])][:5],
+        )
+
+    def extract_code_from_image(self, image_b64: str, mime_type: str) -> ImageExtraction:
+        resp = self._client.chat.completions.create(
+            model=settings.groq_vision_model,
+            messages=[
+                {"role": "system", "content": _VISION_SYSTEM},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Extract the code from this image."},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime_type};base64,{image_b64}"},
+                        },
+                    ],
+                },
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.0,
+        )
+        data = json.loads(resp.choices[0].message.content or "{}")
+        lang = str(data.get("language", "other")).lower()
+        return ImageExtraction(
+            is_code=bool(data.get("is_code", False)),
+            language=lang if lang in {"c", "cpp", "java"} else "other",
+            code=normalize_code(str(data.get("code", ""))),
         )
 
     def chat(self, context: str, history: list[dict[str, str]], question: str) -> str:

@@ -20,6 +20,13 @@ class TranslationResult(BaseModel):
     videos: list[str] = []     # YouTube search topics
 
 
+class ImageExtractionResponse(BaseModel):
+    """Result of POST /translate/extract-image — code read out of an image."""
+    is_code: bool        # False when the image isn't recognizable source code
+    language: str        # detected language: c | cpp | java | other
+    code: str            # the transcribed code ("" when is_code is False)
+
+
 class TranslationJob(BaseModel):
     """POST /translate response — the freshly created job (status: pending)."""
     model_config = ConfigDict(from_attributes=True)  # allow building from an ORM object

@@ -124,6 +124,12 @@ export interface TranslationJob {
   created_at: string
 }
 
+export interface ImageExtraction {
+  is_code: boolean
+  language: string // c | cpp | java | other
+  code: string
+}
+
 export interface TranslationDetail {
   id: number
   status: 'pending' | 'processing' | 'completed' | 'failed'
@@ -154,6 +160,29 @@ export const api = {
       body: JSON.stringify({ source_language, code }),
     }),
   getTranslation: (id: number) => request<TranslationDetail>(`/translate/${id}`),
+  // Image upload uses multipart/form-data, so it bypasses the JSON `request`
+  // helper (the browser must set its own Content-Type with the form boundary).
+  extractImage: async (file: File): Promise<ImageExtraction> => {
+    const form = new FormData()
+    form.append('file', file)
+    const headers: Record<string, string> = {}
+    if (authToken) headers.Authorization = `Bearer ${authToken}`
+    const res = await fetch(`${BASE_URL}/translate/extract-image`, {
+      method: 'POST',
+      headers,
+      body: form,
+    })
+    if (!res.ok) {
+      let detail = res.statusText
+      try {
+        detail = (await res.json()).detail ?? detail
+      } catch {
+        /* no JSON body */
+      }
+      throw new ApiError(res.status, detail)
+    }
+    return (await res.json()) as ImageExtraction
+  },
   listTranslations: (limit = 20, offset = 0) =>
     request<TranslationListResponse>(`/translations?limit=${limit}&offset=${offset}`),
 

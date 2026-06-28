@@ -27,6 +27,14 @@ class TranslationOutput:
     video_topics: list[str] = field(default_factory=list)       # concept keywords
 
 
+@dataclass
+class ImageExtraction:
+    """Result of reading code out of an uploaded image."""
+    is_code: bool          # False when the image isn't really source code
+    language: str          # detected source language: c | cpp | java | other
+    code: str              # the extracted code ("" when is_code is False)
+
+
 class AIProvider(ABC):
     """Contract every AI provider must fulfil. Application code depends on
     THIS, never on a concrete provider — so providers are swappable."""
@@ -40,3 +48,11 @@ class AIProvider(ABC):
     def chat(self, context: str, history: list[dict[str, str]], question: str) -> str:
         """Answer a follow-up question given the analysis context + prior messages."""
         ...
+
+    def extract_code_from_image(self, image_b64: str, mime_type: str) -> ImageExtraction:
+        """Read source code out of an image (optional capability).
+
+        Not every provider is multimodal, so this is NOT abstract — the default
+        signals "unsupported" and providers that can do vision override it.
+        """
+        raise NotImplementedError("This AI provider cannot read images.")

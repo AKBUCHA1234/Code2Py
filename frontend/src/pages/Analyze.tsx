@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'r
 import { useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Editor from '@monaco-editor/react'
-import Tesseract from 'tesseract.js'
 import {
   api,
   ApiError,
@@ -16,10 +15,41 @@ import { celebrate } from '../lib/confetti'
 import { runPython } from '../lib/pyRunner'
 import { ChatPanel } from '../components/ChatPanel'
 
-const SAMPLE = `int factorial(int n) {
+// A distinct starter snippet per language, so switching the dropdown shows a
+// fitting example instead of the same C++ factorial everywhere.
+const SAMPLES: Record<string, string> = {
+  cpp: `int factorial(int n) {
     if (n <= 1) return 1;
     return n * factorial(n - 1);
-}`
+}`,
+  c: `int binary_search(int arr[], int n, int target) {
+    int lo = 0, hi = n - 1;
+    while (lo <= hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (arr[mid] == target) return mid;
+        if (arr[mid] < target) lo = mid + 1;
+        else hi = mid - 1;
+    }
+    return -1;
+}`,
+  java: `class Solution {
+    public void bubbleSort(int[] a) {
+        for (int i = 0; i < a.length - 1; i++) {
+            for (int j = 0; j < a.length - 1 - i; j++) {
+                if (a[j] > a[j + 1]) {
+                    int tmp = a[j];
+                    a[j] = a[j + 1];
+                    a[j + 1] = tmp;
+                }
+            }
+        }
+    }
+}`,
+}
+
+// Used to tell "untouched example" from "the user's own code": only auto-swap
+// the snippet on language change if the editor still holds a known sample.
+const SAMPLE_VALUES = new Set(Object.values(SAMPLES).map((s) => s.trim()))
 
 const LANGUAGES = [
   { value: 'cpp', label: 'C++', monaco: 'cpp' },
@@ -36,7 +66,9 @@ function Analyze() {
   // a Daily Challenge (or other page) can pass a snippet via router state
   const incoming = useLocation().state as { code?: string; language?: string } | null
   const [language, setLanguage] = useState(incoming?.language ?? 'cpp')
-  const [code, setCode] = useState(incoming?.code ?? SAMPLE)
+  const [code, setCode] = useState(
+    incoming?.code ?? SAMPLES[incoming?.language ?? 'cpp'] ?? SAMPLES.cpp,
+  )
   const [jobId, setJobId] = useState<number | null>(null)
   const [detail, setDetail] = useState<TranslationDetail | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -44,27 +76,41 @@ function Analyze() {
   const [tab, setTab] = useState<Tab>('Python')
   const [copied, setCopied] = useState(false)
   const [ocrBusy, setOcrBusy] = useState(false)
-  const [ocrPct, setOcrPct] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
   const [pyOut, setPyOut] = useState<string | null>(null)
   const [pyRunning, setPyRunning] = useState(false)
 
   const monacoLang = LANGUAGES.find((l) => l.value === language)?.monaco ?? 'cpp'
 
+  // Swap the example when the language changes — but only if the editor still
+  // holds an untouched sample, so we never clobber code the user typed/pasted.
+  function changeLanguage(next: string) {
+    setCode((prev) =>
+      prev.trim() === '' || SAMPLE_VALUES.has(prev.trim()) ? SAMPLES[next] : prev,
+    )
+    setLanguage(next)
+  }
+
   async function handleImage(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setOcrBusy(true)
-    setOcrPct(0)
+    setError(null)
     try {
-      const { data } = await Tesseract.recognize(file, 'eng', {
-        logger: (m) => {
-          if (m.status === 'recognizing text') setOcrPct(Math.round(m.progress * 100))
-        },
-      })
-      setCode(data.text.trim())
-    } catch {
-      setError('Could not read text from that image.')
+      // A multimodal model reads the code AND judges whether it's really code,
+      // so a random photo no longer produces an invented answer.
+      const res = await api.extractImage(file)
+      if (!res.is_code || !res.code.trim()) {
+        toast("That image didn't look like code — try a clearer screenshot.", 'error')
+      } else {
+        setCode(res.code)
+        if (res.language === 'c' || res.language === 'cpp' || res.language === 'java') {
+          setLanguage(res.language) // auto-detected language
+        }
+        toast('Code extracted from image ✓', 'success')
+      }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not read that image.')
     } finally {
       setOcrBusy(false)
       if (fileRef.current) fileRef.current.value = '' // allow re-uploading same file
@@ -150,7 +196,7 @@ function Analyze() {
         <div className="card" style={{ padding: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <select value={language} onChange={(e) => setLanguage(e.target.value)} style={{ width: 'auto' }}>
+              <select value={language} onChange={(e) => changeLanguage(e.target.value)} style={{ width: 'auto' }}>
                 {LANGUAGES.map((l) => (
                   <option key={l.value} value={l.value}>{l.label}</option>
                 ))}
@@ -170,7 +216,7 @@ function Analyze() {
                 title="Extract code from a photo or screenshot"
                 style={{ width: 'auto' }}
               >
-                {ocrBusy ? `Reading… ${ocrPct}%` : '📷 Image'}
+                {ocrBusy ? 'Reading…' : '📷 Image'}
               </button>
             </div>
             <button className="btn" onClick={handleSubmit} disabled={analyzing || !code.trim()}>
@@ -246,7 +292,13 @@ function Analyze() {
                     exit={{ opacity: 0, y: -6 }}
                     transition={{ duration: 0.18 }}
                   >
-                    {tab === 'Python' && (
+                    {tab === 'Python' && !r.python_code.trim() && (
+                      <p style={{ color: 'var(--text-muted)', margin: 0, lineHeight: 1.7 }}>
+                        {r.explanation || "That input didn't look like code, so there's nothing to translate. Paste C, C++, or Java and try again."}
+                      </p>
+                    )}
+
+                    {tab === 'Python' && r.python_code.trim() && (
                       <div>
                         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.6rem' }}>
                           <button
