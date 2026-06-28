@@ -261,6 +261,19 @@ input:focus, textarea:focus, select:focus {
 .tab.active { color: var(--text); border-bottom-color: var(--primary); }
 
 /* ---------- hero split ---------- */
+/* hero with a lazy PixelBlast background layer behind the content */
+.hero-section { position: relative; overflow: hidden; }
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none; /* never block the CTA buttons or tilt cards */
+  opacity: 0.55;        /* keep the pixels subtle behind the text */
+}
+/* Safety net: the Shuffle accent must stay visible even if GSAP never marks it
+   ready (e.g. a blocked CDN font) — better a tiny flash than an invisible word. */
+.hero-accent-shuffle { visibility: visible !important; }
+
 .hero { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 3rem; align-items: center; padding: 4.5rem 0 3rem; }
 @media (max-width: 960px) { .hero { grid-template-columns: 1fr; gap: 2rem; } }
 

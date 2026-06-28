@@ -1,9 +1,29 @@
+import { lazy, Suspense, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, type Variants } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
+import { useTheme } from '../context/ThemeContext'
 import { BentoOverview } from '../components/Bento'
 import { Mascot } from '../components/Mascot'
 import { Tilt } from '../components/Tilt'
+import Shuffle from '../components/Shuffle'
+
+// PixelBlast pulls in three.js + postprocessing (heavy). Load it lazily so it
+// never blocks first paint, and only on capable devices (see useRichVisuals).
+const PixelBlast = lazy(() => import('../components/PixelBlast'))
+
+// Rich GPU/motion visuals only where they belong: a precise pointer (desktop)
+// and no reduced-motion preference. Phones get the clean static hero.
+function useRichVisuals() {
+  const [on] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      !!window.matchMedia &&
+      window.matchMedia('(pointer: fine)').matches &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  )
+  return on
+}
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -34,20 +54,61 @@ const STEPS = [
 
 function Landing() {
   const { user } = useAuth()
+  const { theme } = useTheme()
+  const richVisuals = useRichVisuals()
+  // Theme-matched accent (light orange in light mode, warmer orange in dark).
+  const primary = theme === 'dark' ? '#F0954A' : '#ED8B3F'
+  const accentFrom = '#E8B24A' // soft yellow → orange tween while shuffling
   return (
     <>
       {/* ---------------- HERO ---------------- */}
-      <div className="container">
-        <motion.div className="hero" variants={stagger} initial="hidden" animate="show">
-          {/* left */}
-          <div>
-            <motion.div className="eyebrow" variants={fadeUp} style={{ marginBottom: '1rem' }}>
-              Local AI · runs at ₹0
-            </motion.div>
-            <motion.h1 variants={fadeUp}>
-              Convert DSA code into Python and{' '}
-              <span style={{ color: 'var(--primary)' }}>understand algorithms faster</span>
-            </motion.h1>
+      <section className="hero-section">
+        {richVisuals && (
+          <Suspense fallback={null}>
+            <div className="hero-bg" aria-hidden="true">
+              <PixelBlast
+                variant="circle"
+                color={primary}
+                pixelSize={6}
+                patternScale={3}
+                patternDensity={0.9}
+                pixelSizeJitter={0.4}
+                enableRipples={false}
+                speed={0.4}
+                edgeFade={0.3}
+                transparent
+              />
+            </div>
+          </Suspense>
+        )}
+        <div className="container" style={{ position: 'relative', zIndex: 1 }}>
+          <motion.div className="hero" variants={stagger} initial="hidden" animate="show">
+            {/* left */}
+            <div>
+              <motion.div className="eyebrow" variants={fadeUp} style={{ marginBottom: '1rem' }}>
+                Local AI · runs at ₹0
+              </motion.div>
+              <motion.h1 variants={fadeUp}>
+                Convert DSA code into Python and{' '}
+                <Shuffle
+                  tag="span"
+                  text="understand algorithms faster"
+                  className="hero-accent-shuffle"
+                  style={{ color: primary, display: 'inline-block' }}
+                  textAlign="inherit"
+                  shuffleDirection="right"
+                  duration={0.32}
+                  animationMode="evenodd"
+                  stagger={0.025}
+                  shuffleTimes={1}
+                  ease="power3.out"
+                  colorFrom={accentFrom}
+                  colorTo={primary}
+                  triggerOnce
+                  triggerOnHover
+                  respectReducedMotion
+                />
+              </motion.h1>
             <motion.p variants={fadeUp} style={{ fontSize: '1.18rem', maxWidth: 480, marginTop: '1rem' }}>
               Paste C, C++, or Java. Code2Py explains the logic, detects the algorithm,
               and breaks down complexity — then points you to problems and videos to master it.
@@ -105,8 +166,9 @@ function Landing() {
               </motion.div>
             </Tilt>
           </motion.div>
-        </motion.div>
-      </div>
+          </motion.div>
+        </div>
+      </section>
 
       {/* ---------------- FEATURES ---------------- */}
       <div className="container section">
