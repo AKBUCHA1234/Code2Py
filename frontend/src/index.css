@@ -282,6 +282,8 @@ input:focus, textarea:focus, select:focus {
 .section-head { text-align: center; max-width: 640px; margin: 0 auto 2.5rem; }
 
 .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.1rem; }
+/* a Tilt wrapper used as a grid cell: fill the cell so cards stay equal height */
+.tilt-cell { height: 100%; }
 .feature-icon {
   width: 40px; height: 40px; border-radius: 10px;
   display: grid; place-items: center; font-size: 1.2rem; margin-bottom: 0.85rem;

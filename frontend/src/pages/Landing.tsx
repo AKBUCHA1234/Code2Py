@@ -3,6 +3,7 @@ import { motion, type Variants } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import { BentoOverview } from '../components/Bento'
 import { Mascot } from '../components/Mascot'
+import { Tilt } from '../components/Tilt'
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 24 },
@@ -67,7 +68,7 @@ function Landing() {
               <span className="badge" style={{ background: 'var(--surface)' }}>Hi, I'm Cody 👋</span>
               <Mascot size={72} />
             </div>
-            <div className="window">
+            <Tilt max={8} className="window">
               <div className="window-bar">
                 <span className="window-dot" style={{ background: '#E0726A' }} />
                 <span className="window-dot" style={{ background: '#E3C04A' }} />
@@ -84,23 +85,25 @@ function Landing() {
     }
     return -1;
 }`}</pre>
-            </div>
+            </Tilt>
 
-            <motion.div
-              className="card"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.5 }}
-            >
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                <span className="badge yellow">Binary Search</span>
-                <span className="badge">Time O(log n)</span>
-                <span className="badge">Space O(1)</span>
-              </div>
-              <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.92rem' }}>
-                Repeatedly halves the search range, comparing the middle element to the target.
-              </p>
-            </motion.div>
+            <Tilt max={7}>
+              <motion.div
+                className="card"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5, duration: 0.5 }}
+              >
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                  <span className="badge yellow">Binary Search</span>
+                  <span className="badge">Time O(log n)</span>
+                  <span className="badge">Space O(1)</span>
+                </div>
+                <p style={{ margin: 0, color: 'var(--text)', fontSize: '0.92rem' }}>
+                  Repeatedly halves the search range, comparing the middle element to the target.
+                </p>
+              </motion.div>
+            </Tilt>
           </motion.div>
         </motion.div>
       </div>
@@ -119,11 +122,13 @@ function Landing() {
           viewport={{ once: true, margin: '-80px' }}
         >
           {FEATURES.map((f) => (
-            <motion.div key={f.title} className="card interactive" variants={fadeUp} whileHover={{ y: -4 }}>
-              <div className="feature-icon">{f.icon}</div>
-              <h3>{f.title}</h3>
-              <p style={{ marginBottom: 0, fontSize: '0.92rem' }}>{f.body}</p>
-            </motion.div>
+            <Tilt key={f.title} max={10} className="tilt-cell">
+              <motion.div className="card interactive" variants={fadeUp} style={{ height: '100%' }}>
+                <div className="feature-icon">{f.icon}</div>
+                <h3>{f.title}</h3>
+                <p style={{ marginBottom: 0, fontSize: '0.92rem' }}>{f.body}</p>
+              </motion.div>
+            </Tilt>
           ))}
         </motion.div>
       </div>
